@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Weight Tracker Graph</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 900px; /* 50% larger width */
+      margin: 2em auto;
+      text-align: center;
+      background-color: #fafafa;
+    }
+
+    h2 {
+      margin-bottom: 0.3em;
+    }
+
+    #chartContainer {
+      margin-top: 25px;
+    }
+
+    canvas {
+      max-width: 100%;
+      height: 500px !important; /* taller graph area */
+      background-color: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    #downloadBtn {
+      margin-top: 15px;
+      padding: 8px 14px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      font-size: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #downloadBtn:hover {
+      background-color: #0056b3;
+    }
+
+    input[type="file"] {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Noom Export Weight Graph (in lbs)</h2>
+  <p>Upload your <strong>actions.csv</strong> file:</p>
+  <input type="file" id="fileInput" accept=".csv">
+
+  <div id="chartContainer">
+    <canvas id="weightChart"></canvas>
+  </div>
+
+  <button id="downloadBtn" style="display:none;">Download Graph as PNG</button>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const downloadBtn = document.getElementById('downloadBtn');
+    let chart;
+
+    fileInput.addEventListener('change', handleFile);
+
+    function handleFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          const data = results.data;
+          const weights = [];
+          const dates = [];
+
+          data.forEach(row => {
+            if (row.actionType === "WEIGH_IN" && row.jsonString) {
+              try {
+                const jsonData = JSON.parse(row.jsonString);
+                if (jsonData.weightInKg) {
+                  const weightLbs = jsonData.weightInKg * 2.20462;
+                  weights.push(weightLbs);
+                  dates.push(new Date(row.date));
+                }
+              } catch (e) {
+                // Ignore invalid JSON
+              }
+            }
+          });
+
+          if (weights.length === 0) {
+            alert("No weight data found in this file.");
+            return;
+          }
+
+          drawChart(dates, weights);
+        }
+      });
+    }
+
+    function drawChart(dates, weights) {
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates.map(d => d.toISOString().split('T')[0]),
+          datasets: [{
+            label: 'Weight (lbs)',
+            data: weights,
+            fill: false,
+            borderColor: '#007bff',
+            backgroundColor: '#007bff',
+            borderWidth: 1.5,    // thinner line
+            pointRadius: 2.5,    // smaller points
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          layout: { padding: 15 },
+          scales: {
+            x: {
+              title: { display: true, text: 'Date' },
+              ticks: { maxRotation: 45, minRotation: 45 },
+              grid: { color: 'rgba(0, 0, 0, 0.05)' } // light grid
+            },
+            y: {
+              title: { display: true, text: 'Weight (lbs)' },
+              grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            }
+          },
+          plugins: {
+            legend: { display: true, labels: { boxWidth: 15 } }
+          }
+        }
+      });
+
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = () => {
+        const link = document.createElement('a');
+        link.download = 'weight_graph.png';
+        link.href = chart.toBase64Image();
+        link.click();
+      };
+    }
+  </script>
+
+<p> Created by <a href="https://jjqad.com">JJQAD</a>, 2025</p>
+
+
+</body>
+</html>
